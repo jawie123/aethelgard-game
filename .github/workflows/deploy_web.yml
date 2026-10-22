@@ -39,7 +39,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Web Version
-        run: flutter build web --release --base-href "/aethelgard-game/" --no-tree-shake-icons
+        run: flutter build web --release --base-href "/aethelgard-game/" --web-renderer html
 
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
