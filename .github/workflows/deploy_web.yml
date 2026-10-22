@@ -35,10 +35,13 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Build Web Version
-        run: flutter build web --release --base-href "/aethelgard-game/"
+      - name: Install Dependencies
+        run: flutter pub get
 
-      - name: Upload artifact
+      - name: Build Web Version
+        run: flutter build web --release --base-href "/aethelgard-game/" --no-tree-shake-icons
+
+      - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: 'build/web'
