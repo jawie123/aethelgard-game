@@ -12,7 +12,7 @@ class AethelgardApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Aethelgard: Kings & Conundrums',
+      title: 'Aethelgard: Siege of Kings',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
@@ -33,80 +33,89 @@ class MainGameScreen extends StatefulWidget {
 
 class _MainGameScreenState extends State<MainGameScreen> {
   int _currentIndex = 0;
-  int gold = 25000;
-  int gems = 850;
-  int keepLevel = 1;
-  int armyPower = 1200;
+  int gold = 1500;
+  int gems = 50;
+  int castleHp = 100;
+  int maxCastleHp = 100;
+  int arrowDamage = 25;
+  int wave = 1;
+  int score = 0;
 
-  void addResources(int addedGold, int addedGems) {
+  void addGold(int amount) => setState(() => gold += amount);
+  void addGems(int amount) => setState(() => gems += amount);
+  void damageCastle(int amount) {
     setState(() {
-      gold += addedGold;
-      gems += addedGems;
+      castleHp -= amount;
+      if (castleHp <= 0) {
+        castleHp = maxCastleHp;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('⚠️ Castle Breached! Wave Restarted.')),
+        );
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    List<Widget> screens = [
+      BattleArenaView(
+        gold: gold,
+        gems: gems,
+        castleHp: castleHp,
+        maxCastleHp: maxCastleHp,
+        arrowDamage: arrowDamage,
+        wave: wave,
+        onReward: (g, s) {
+          addGold(g);
+          setState(() => score += s);
+        },
+        onDamageCastle: damageCastle,
+      ),
+      UpgradesView(
+        gold: gold,
+        arrowDamage: arrowDamage,
+        maxCastleHp: maxCastleHp,
+        onUpgradeDamage: (cost) {
+          setState(() {
+            gold -= cost;
+            arrowDamage += 15;
+          });
+        },
+        onUpgradeWall: (cost) {
+          setState(() {
+            gold -= cost;
+            maxCastleHp += 50;
+            castleHp = maxCastleHp;
+          });
+        },
+      ),
+      const CampaignMapView(),
+      TavernSummonView(gems: gems, onSummon: () {
+        if (gems >= 50) {
+          setState(() => gems -= 50);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('⚔️ Epic Paladin Hero Summoned!')),
+          );
+        }
+      }),
+    ];
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF1E293B),
-        elevation: 4,
         title: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             _buildStatChip(Icons.monetization_on, "$gold", Colors.amber),
             _buildStatChip(Icons.diamond, "$gems", Colors.cyan),
-            _buildStatChip(Icons.flash_on, "Power: $armyPower", Colors.redAccent),
+            _buildStatChip(Icons.shield, "HP: $castleHp/$maxCastleHp", Colors.greenAccent),
           ],
         ),
       ),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800),
-          child: IndexedStack(
-            index: _currentIndex,
-            children: [
-              CityView(
-                keepLevel: keepLevel,
-                gold: gold,
-                onUpgrade: () {
-                  if (gold >= keepLevel * 5000) {
-                    setState(() {
-                      gold -= keepLevel * 5000;
-                      keepLevel++;
-                      armyPower += 800;
-                    });
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('🏰 Keep Upgraded to Level $keepLevel!')),
-                    );
-                  }
-                },
-              ),
-              PuzzleView(
-                onWin: () {
-                  addResources(3000, 50);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('🎉 Puzzle Solved! +3000 Gold, +50 Gems')),
-                  );
-                },
-              ),
-              const WorldMapView(),
-              TavernView(
-                gems: gems,
-                onSummon: () {
-                  if (gems >= 100) {
-                    setState(() {
-                      gems -= 100;
-                      armyPower += 500;
-                    });
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('⚔️ Legendary General Summoned! +500 Power')),
-                    );
-                  }
-                },
-              ),
-            ],
-          ),
+          constraints: const BoxConstraints(maxWidth: 900),
+          child: screens[_currentIndex],
         ),
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -117,10 +126,10 @@ class _MainGameScreenState extends State<MainGameScreen> {
         selectedItemColor: const Color(0xFFF59E0B),
         unselectedItemColor: Colors.grey,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.fort), label: "City"),
-          BottomNavigationBarItem(icon: Icon(Icons.extension), label: "Puzzle"),
-          BottomNavigationBarItem(icon: Icon(Icons.map), label: "World Map"),
-          BottomNavigationBarItem(icon: Icon(Icons.shield), label: "Generals"),
+          BottomNavigationBarItem(icon: Icon(Icons.security), label: "Battle"),
+          BottomNavigationBarItem(icon: Icon(Icons.flash_on), label: "Upgrades"),
+          BottomNavigationBarItem(icon: Icon(Icons.map), label: "Campaign"),
+          BottomNavigationBarItem(icon: Icon(Icons.star), label: "Heroes"),
         ],
       ),
     );
@@ -128,34 +137,132 @@ class _MainGameScreenState extends State<MainGameScreen> {
 
   Widget _buildStatChip(IconData icon, String text, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.black45,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.5)),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(0.4)),
       ),
       child: Row(
         children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(width: 6),
-          Text(text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          Icon(icon, color: color, size: 16),
+          const SizedBox(width: 4),
+          Text(text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
         ],
       ),
     );
   }
 }
 
-// ---------------- 1. CITY VIEW ----------------
-class CityView extends StatelessWidget {
-  final int keepLevel;
-  final int gold;
-  final VoidCallback onUpgrade;
+// ---------------- 1. BATTLE ARENA VIEW (ACTION GAMEPLAY) ----------------
+class Enemy {
+  double x; // 0.0 (Castle) to 1.0 (Spawn right)
+  int hp;
+  int maxHp;
+  double speed;
+  String name;
+  Color color;
 
-  const CityView({super.key, required this.keepLevel, required this.gold, required this.onUpgrade});
+  Enemy({required this.x, required this.hp, required this.maxHp, required this.speed, required this.name, required this.color});
+}
+
+class BattleArenaView extends StatefulWidget {
+  final int gold;
+  final int gems;
+  final int castleHp;
+  final int maxCastleHp;
+  final int arrowDamage;
+  final int wave;
+  final Function(int, int) onReward;
+  final Function(int) onDamageCastle;
+
+  const BattleArenaView({
+    super.key,
+    required this.gold,
+    required this.gems,
+    required this.castleHp,
+    required this.maxCastleHp,
+    required this.arrowDamage,
+    required this.wave,
+    required this.onReward,
+    required this.onDamageCastle,
+  });
+
+  @override
+  State<BattleArenaView> createState() => _BattleArenaViewState();
+}
+
+class _BattleArenaViewState extends State<BattleArenaView> with SingleTickerProviderStateMixin {
+  late Timer _gameLoop;
+  final List<Enemy> _enemies = [];
+  final Random _rand = Random();
+  int enemiesDefeated = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Game Loop at ~30 FPS
+    _gameLoop = Timer.periodic(const Duration(milliseconds: 33), (timer) {
+      _updateGame();
+    });
+    // Spawn initial enemies
+    _spawnEnemy();
+    _spawnEnemy();
+  }
+
+  @override
+  void dispose() {
+    _gameLoop.cancel();
+    super.dispose();
+  }
+
+  void _spawnEnemy() {
+    if (_enemies.length < 5) {
+      bool isOrc = _rand.nextBool();
+      setState(() {
+        _enemies.add(Enemy(
+          x: 1.0,
+          hp: isOrc ? 60 : 30,
+          maxHp: isOrc ? 60 : 30,
+          speed: isOrc ? 0.003 : 0.005,
+          name: isOrc ? "Orc Raider" : "Goblin Thief",
+          color: isOrc ? Colors.redAccent : Colors.orangeAccent,
+        ));
+      });
+    }
+  }
+
+  void _updateGame() {
+    setState(() {
+      for (int i = _enemies.length - 1; i >= 0; i--) {
+        _enemies[i].x -= _enemies[i].speed;
+        // Reach Castle
+        if (_enemies[i].x <= 0.05) {
+          widget.onDamageCastle(10);
+          _enemies.removeAt(i);
+          _spawnEnemy();
+        }
+      }
+      if (_enemies.length < 4 && _rand.nextInt(50) == 1) {
+        _spawnEnemy();
+      }
+    });
+  }
+
+  void _tapAttackEnemy(Enemy enemy) {
+    setState(() {
+      enemy.hp -= widget.arrowDamage;
+      if (enemy.hp <= 0) {
+        _enemies.remove(enemy);
+        enemiesDefeated++;
+        widget.onReward(50, 10);
+        _spawnEnemy();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    int cost = keepLevel * 5000;
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -164,257 +271,246 @@ class CityView extends StatelessWidget {
           end: Alignment.bottomCenter,
         ),
       ),
-      child: Center(
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.fort, size: 100, color: Color(0xFFD97706)),
-              const SizedBox(height: 12),
-              Text('Aethelgard Keep - Level $keepLevel',
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.amber)),
-              const SizedBox(height: 8),
-              const Text('Expand your kingdom and train armies', style: TextStyle(color: Colors.grey)),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFD97706),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                ),
-                onPressed: gold >= cost ? onUpgrade : null,
-                icon: const Icon(Icons.upgrade),
-                label: Text('Upgrade Keep ($cost Gold)'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------- 2. INTERACTIVE PIN PUZZLE VIEW ----------------
-class PuzzleView extends StatefulWidget {
-  final VoidCallback onWin;
-  const PuzzleView({super.key, required this.onWin});
-
-  @override
-  State<PuzzleView> createState() => _PuzzleViewState();
-}
-
-class _PuzzleViewState extends State<PuzzleView> {
-  bool pin1Pulled = false;
-  bool pin2Pulled = false;
-  bool lavaDropped = false;
-  bool solved = false;
-  bool failed = false;
-
-  void pullPin(int pinNumber) {
-    if (solved || failed) return;
-    setState(() {
-      if (pinNumber == 1) {
-        pin1Pulled = true;
-        lavaDropped = true;
-        failed = true;
-      } else if (pinNumber == 2) {
-        pin2Pulled = true;
-        solved = true;
-        widget.onWin();
-      }
-    });
-  }
-
-  void resetPuzzle() {
-    setState(() {
-      pin1Pulled = false;
-      pin2Pulled = false;
-      lavaDropped = false;
-      solved = false;
-      failed = false;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      color: const Color(0xFF020617),
       child: Column(
         children: [
-          const SizedBox(height: 10),
-          const Text("🧩 Pin-Pull Physics Challenge", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.amber)),
-          const SizedBox(height: 6),
-          const Text("Pull the correct pin to drop treasure safely on the King!", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
-          const SizedBox(height: 10),
-          Expanded(
-            child: Center(
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: 280,
-                    height: 360,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.amber, width: 3),
-                      borderRadius: BorderRadius.circular(16),
-                      color: const Color(0xFF0F172A),
-                    ),
-                  ),
-                  Positioned(
-                    top: 40,
-                    left: 70,
-                    child: AnimatedContainer(
-                      duration: const Duration(seconds: 1),
-                      width: 60,
-                      height: lavaDropped ? 220 : 40,
-                      color: Colors.deepOrange,
-                      child: const Center(child: Text("🌋 Lava", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold))),
-                    ),
-                  ),
-                  Positioned(
-                    top: 40,
-                    right: 70,
-                    child: Container(
-                      width: 60,
-                      height: 40,
-                      color: Colors.amber,
-                      child: const Center(child: Text("💎 Gold", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black))),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 40,
-                    child: Column(
-                      children: [
-                        Icon(failed ? Icons.sentiment_very_dissatisfied : Icons.person_pin,
-                            size: 60, color: failed ? Colors.red : (solved ? Colors.green : Colors.blue)),
-                        Text(failed ? "BURNED!" : (solved ? "VICTORY!" : "King"),
-                            style: TextStyle(fontWeight: FontWeight.bold, color: failed ? Colors.red : Colors.white)),
-                      ],
-                    ),
-                  ),
-                  if (!pin1Pulled)
-                    Positioned(
-                      top: 100,
-                      left: 50,
-                      child: GestureDetector(
-                        onTap: () => pullPin(1),
-                        child: Container(
-                          width: 90,
-                          height: 14,
-                          decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(6)),
-                          child: const Center(child: Text("Pull Pin 1", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold))),
-                        ),
-                      ),
-                    ),
-                  if (!pin2Pulled)
-                    Positioned(
-                      top: 100,
-                      right: 50,
-                      child: GestureDetector(
-                        onTap: () => pullPin(2),
-                        child: Container(
-                          width: 90,
-                          height: 14,
-                          decoration: BoxDecoration(color: Colors.amber, borderRadius: BorderRadius.circular(6)),
-                          child: const Center(child: Text("Pull Pin 2", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.black))),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text("Wave ${widget.wave} - Tap Enemies to Shoot!", style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
+                Text("Defeated: $enemiesDefeated", style: const TextStyle(color: Colors.cyan)),
+              ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: ElevatedButton.icon(
-              onPressed: resetPuzzle,
-              icon: const Icon(Icons.refresh),
-              label: const Text("Reset Puzzle"),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                double width = constraints.maxWidth;
+                double height = constraints.maxHeight;
+
+                return Stack(
+                  children: [
+                    // Battlefield background lines
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: BattlefieldPainter(),
+                      ),
+                    ),
+                    // Castle Wall on Left
+                    Positioned(
+                      left: 10,
+                      top: height / 2 - 80,
+                      child: Container(
+                        width: 60,
+                        height: 160,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF334155),
+                          border: Border.all(color: Colors.amber, width: 2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.fort, color: Colors.amber, size: 36),
+                            SizedBox(height: 4),
+                            Text("WALL", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // Enemies marching from right to left
+                    ..._enemies.map((enemy) {
+                      double posX = 80 + (width - 150) * enemy.x;
+                      return Positioned(
+                        left: posX,
+                        top: height / 2 - 30 + (_rand.nextDouble() * 100 - 50),
+                        child: GestureDetector(
+                          onTap: () => _tapAttackEnemy(enemy),
+                          child: Column(
+                            children: [
+                              Container(
+                                width: 36,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  color: Colors.black54,
+                                  borderRadius: BorderRadius.circular(3),
+                                ),
+                                child: FractionallySizedBox(
+                                  alignment: Alignment.centerLeft,
+                                  widthFactor: (enemy.hp / enemy.maxHp).clamp(0.0, 1.0),
+                                  child: Container(decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(3))),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: enemy.color,
+                                  shape: BoxShape.circle,
+                                  boxShadow: const [BoxShadow(color: Colors.black, blurRadius: 4)],
+                                ),
+                                child: const Icon(Icons.android, size: 24, color: Colors.white),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(enemy.name, style: const TextStyle(fontSize: 9, color: Colors.white70)),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
+                );
+              },
             ),
-          )
+          ),
+          const Padding(
+            padding: EdgeInsets.all(12.0),
+            child: Text("👆 Tap rapidly on marching enemy units to fire archer arrows!", style: TextStyle(color: Colors.grey, fontSize: 12)),
+          ),
         ],
       ),
     );
   }
 }
 
-// ---------------- 3. WORLD MAP VIEW ----------------
-class WorldMapView extends StatelessWidget {
-  const WorldMapView({super.key});
+class BattlefieldPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white10
+      ..strokeWidth = 2;
+    canvas.drawLine(Offset(0, size.height / 2 + 50), Offset(size.width, size.height / 2 + 50), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// ---------------- 2. UPGRADES VIEW ----------------
+class UpgradesView extends StatelessWidget {
+  final int gold;
+  final int arrowDamage;
+  final int maxCastleHp;
+  final Function(int) onUpgradeDamage;
+  final Function(int) onUpgradeWall;
+
+  const UpgradesView({
+    super.key,
+    required this.gold,
+    required this.arrowDamage,
+    required this.maxCastleHp,
+    required this.onUpgradeDamage,
+    required this.onUpgradeWall,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFF0F172A),
-      child: GridView.builder(
-        padding: const EdgeInsets.all(16),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-        ),
-        itemCount: 12,
-        itemBuilder: (context, index) {
-          bool isKeep = index == 4;
-          bool isBoss = index == 2 || index == 9;
-          return Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E293B),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: isKeep ? Colors.amber : (isBoss ? Colors.redAccent : Colors.grey)),
+    int dmgCost = 200;
+    int wallCost = 300;
+
+    return Padding(
+      padding: const EdgeInsets.all(20.0),
+      child: ListView(
+        children: [
+          const Text("🛡️ Kingdom Armory & Upgrades", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.amber)),
+          const SizedBox(height: 16),
+          Card(
+            color: const Color(0xFF1E293B),
+            child: ListTile(
+              leading: const Icon(Icons.bolt, color: Colors.amber, size: 36),
+              title: const Text("Archer Arrow Damage", style: TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text("Current Damage: $arrowDamage"),
+              trailing: ElevatedButton(
+                onPressed: gold >= dmgCost ? () => onUpgradeDamage(dmgCost) : null,
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.amber),
+                child: Text("$dmgCost Gold", style: const TextStyle(color: Colors.black)),
+              ),
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  isKeep ? Icons.fort : (isBoss ? Icons.dangerous : Icons.landscape),
-                  size: 32,
-                  color: isKeep ? Colors.amber : (isBoss ? Colors.redAccent : Colors.green),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  isKeep ? "Your City" : (isBoss ? "Lvl 15 Boss" : "Resource Node"),
-                  style: const TextStyle(fontSize: 11, color: Colors.white70),
-                )
-              ],
+          ),
+          const SizedBox(height: 12),
+          Card(
+            color: const Color(0xFF1E293B),
+            child: ListTile(
+              leading: const Icon(Icons.shield, color: Colors.greenAccent, size: 36),
+              title: const Text("Castle Wall Durability", style: TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text("Max Wall HP: $maxCastleHp"),
+              trailing: ElevatedButton(
+                onPressed: gold >= wallCost ? () => onUpgradeWall(wallCost) : null,
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent),
+                child: Text("$wallCost Gold", style: const TextStyle(color: Colors.black)),
+              ),
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
 }
 
-// ---------------- 4. GENERALS TAVERN VIEW ----------------
-class TavernView extends StatelessWidget {
-  final int gems;
-  final VoidCallback onSummon;
-
-  const TavernView({super.key, required this.gems, required this.onSummon});
+// ---------------- 3. CAMPAIGN MAP VIEW ----------------
+class CampaignMapView extends StatelessWidget {
+  const CampaignMapView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      color: const Color(0xFF0F172A),
-      child: Center(
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12),
+      itemCount: 6,
+      itemBuilder: (context, index) {
+        bool unlocked = index < 3;
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E293B),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: unlocked ? Colors.amber : Colors.grey),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(unlocked ? Icons.lock_open : Icons.lock, size: 40, color: unlocked ? Colors.amber : Colors.grey),
+              const SizedBox(height: 8),
+              Text("Province ${index + 1}", style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Text(unlocked ? "Ready to Raid" : "Locked", style: TextStyle(fontSize: 12, color: unlocked ? Colors.green : Colors.grey)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ---------------- 4. HERO TAVERN VIEW ----------------
+class TavernSummonView extends StatelessWidget {
+  final int gems;
+  final VoidCallback onSummon;
+
+  const TavernSummonView({super.key, required this.gems, required this.onSummon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.shield, size: 80, color: Colors.cyan),
+            const Icon(Icons.auto_awesome, size: 80, color: Colors.cyan),
             const SizedBox(height: 16),
-            const Text("Generals Tavern Gacha", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.amber)),
+            const Text("Hero Summon Portal", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.cyan)),
             const SizedBox(height: 8),
-            const Text("Recruit historical military leaders to boost your army power!", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+            const Text("Summon legendary commanders to defend Aethelgard!", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
             const SizedBox(height: 24),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.cyan,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
               ),
-              onPressed: gems >= 100 ? onSummon : null,
+              onPressed: gems >= 50 ? onSummon : null,
               icon: const Icon(Icons.star, color: Colors.black),
-              label: const Text("Summon General (100 Gems)", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+              label: const Text("Summon Hero (50 Gems)", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
