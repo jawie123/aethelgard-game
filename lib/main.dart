@@ -60,49 +60,54 @@ class _MainGameScreenState extends State<MainGameScreen> {
           ],
         ),
       ),
-      body: IndexedStack(
-        index: _currentIndex,
-        children: [
-          CityView(
-            keepLevel: keepLevel,
-            gold: gold,
-            onUpgrade: () {
-              if (gold >= keepLevel * 5000) {
-                setState(() {
-                  gold -= keepLevel * 5000;
-                  keepLevel++;
-                  armyPower += 800;
-                });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('🏰 Keep Upgraded to Level $keepLevel!')),
-                );
-              }
-            },
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: IndexedStack(
+            index: _currentIndex,
+            children: [
+              CityView(
+                keepLevel: keepLevel,
+                gold: gold,
+                onUpgrade: () {
+                  if (gold >= keepLevel * 5000) {
+                    setState(() {
+                      gold -= keepLevel * 5000;
+                      keepLevel++;
+                      armyPower += 800;
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('🏰 Keep Upgraded to Level $keepLevel!')),
+                    );
+                  }
+                },
+              ),
+              PuzzleView(
+                onWin: () {
+                  addResources(3000, 50);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('🎉 Puzzle Solved! +3000 Gold, +50 Gems')),
+                  );
+                },
+              ),
+              const WorldMapView(),
+              TavernView(
+                gems: gems,
+                onSummon: () {
+                  if (gems >= 100) {
+                    setState(() {
+                      gems -= 100;
+                      armyPower += 500;
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('⚔️ Legendary General Summoned! +500 Power')),
+                    );
+                  }
+                },
+              ),
+            ],
           ),
-          PuzzleView(
-            onWin: () {
-              addResources(3000, 50);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('🎉 Puzzle Solved! +3000 Gold, +50 Gems')),
-              );
-            },
-          ),
-          const WorldMapView(),
-          TavernView(
-            gems: gems,
-            onSummon: () {
-              if (gems >= 100) {
-                setState(() {
-                  gems -= 100;
-                  armyPower += 500;
-                });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('⚔️ Legendary General Summoned! +500 Power')),
-                );
-              }
-            },
-          ),
-        ],
+        ),
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
@@ -210,7 +215,7 @@ class _PuzzleViewState extends State<PuzzleView> {
       if (pinNumber == 1) {
         pin1Pulled = true;
         lavaDropped = true;
-        failed = true; // Lava drops on hero
+        failed = true;
       } else if (pinNumber == 2) {
         pin2Pulled = true;
         solved = true;
@@ -236,95 +241,96 @@ class _PuzzleViewState extends State<PuzzleView> {
       color: const Color(0xFF020617),
       child: Column(
         children: [
-          const Text("🧩 Pin-Pull Physics Challenge", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.amber)),
-          const SizedBox(height: 8),
-          const Text("Pull the correct pin to drop treasure safely on the King!", style: TextStyle(color: Colors.grey)),
+          const SizedBox(height: 10),
+          const Text("🧩 Pin-Pull Physics Challenge", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.amber)),
+          const SizedBox(height: 6),
+          const Text("Pull the correct pin to drop treasure safely on the King!", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+          const SizedBox(height: 10),
           Expanded(
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // Container Box
-                Container(
-                  width: 260,
-                  height: 340,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.amber, width: 3),
-                    borderRadius: BorderRadius.circular(16),
-                    color: const Color(0xFF0F172A),
-                  ),
-                ),
-                // Lava Chamber (Top Left)
-                Positioned(
-                  top: 40,
-                  left: 60,
-                  child: AnimatedContainer(
-                    duration: const Duration(seconds: 1),
-                    width: 60,
-                    height: lavaDropped ? 200 : 40,
-                    color: Colors.deepOrange,
-                    child: const Center(child: Text("🌋 Lava", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold))),
-                  ),
-                ),
-                // Treasure Chamber (Top Right)
-                Positioned(
-                  top: 40,
-                  right: 60,
-                  child: Container(
-                    width: 60,
-                    height: 40,
-                    color: Colors.amber,
-                    child: const Center(child: Text("💎 Gold", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black))),
-                  ),
-                ),
-                // Hero / King (Bottom)
-                Positioned(
-                  bottom: 40,
-                  child: Column(
-                    children: [
-                      Icon(failed ? Icons.sentiment_very_dissatisfied : Icons.person_pin,
-                          size: 60, color: failed ? Colors.red : (solved ? Colors.green : Colors.blue)),
-                      Text(failed ? "BURNED!" : (solved ? "VICTORY!" : "King"),
-                          style: TextStyle(fontWeight: FontWeight.bold, color: failed ? Colors.red : Colors.white)),
-                    ],
-                  ),
-                ),
-                // Pin 1 (Lava Barrier)
-                if (!pin1Pulled)
-                  Positioned(
-                    top: 90,
-                    left: 40,
-                    child: GestureDetector(
-                      onTap: () => pullPin(1),
-                      child: Container(
-                        width: 100,
-                        height: 12,
-                        decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(6)),
-                        child: const Center(child: Text("Pull Pin 1", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold))),
-                      ),
+            child: Center(
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    width: 280,
+                    height: 360,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.amber, width: 3),
+                      borderRadius: BorderRadius.circular(16),
+                      color: const Color(0xFF0F172A),
                     ),
                   ),
-                // Pin 2 (Treasure Barrier)
-                if (!pin2Pulled)
                   Positioned(
-                    top: 90,
-                    right: 40,
-                    child: GestureDetector(
-                      onTap: () => pullPin(2),
-                      child: Container(
-                        width: 100,
-                        height: 12,
-                        decoration: BoxDecoration(color: Colors.amber, borderRadius: BorderRadius.circular(6)),
-                        child: const Center(child: Text("Pull Pin 2", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.black))),
-                      ),
+                    top: 40,
+                    left: 70,
+                    child: AnimatedContainer(
+                      duration: const Duration(seconds: 1),
+                      width: 60,
+                      height: lavaDropped ? 220 : 40,
+                      color: Colors.deepOrange,
+                      child: const Center(child: Text("🌋 Lava", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold))),
                     ),
                   ),
-              ],
+                  Positioned(
+                    top: 40,
+                    right: 70,
+                    child: Container(
+                      width: 60,
+                      height: 40,
+                      color: Colors.amber,
+                      child: const Center(child: Text("💎 Gold", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black))),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 40,
+                    child: Column(
+                      children: [
+                        Icon(failed ? Icons.sentiment_very_dissatisfied : Icons.person_pin,
+                            size: 60, color: failed ? Colors.red : (solved ? Colors.green : Colors.blue)),
+                        Text(failed ? "BURNED!" : (solved ? "VICTORY!" : "King"),
+                            style: TextStyle(fontWeight: FontWeight.bold, color: failed ? Colors.red : Colors.white)),
+                      ],
+                    ),
+                  ),
+                  if (!pin1Pulled)
+                    Positioned(
+                      top: 100,
+                      left: 50,
+                      child: GestureDetector(
+                        onTap: () => pullPin(1),
+                        child: Container(
+                          width: 90,
+                          height: 14,
+                          decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(6)),
+                          child: const Center(child: Text("Pull Pin 1", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold))),
+                        ),
+                      ),
+                    ),
+                  if (!pin2Pulled)
+                    Positioned(
+                      top: 100,
+                      right: 50,
+                      child: GestureDetector(
+                        onTap: () => pullPin(2),
+                        child: Container(
+                          width: 90,
+                          height: 14,
+                          decoration: BoxDecoration(color: Colors.amber, borderRadius: BorderRadius.circular(6)),
+                          child: const Center(child: Text("Pull Pin 2", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.black))),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
-          ElevatedButton.icon(
-            onPressed: resetPuzzle,
-            icon: const Icon(Icons.refresh),
-            label: const Text("Reset Puzzle"),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: ElevatedButton.icon(
+              onPressed: resetPuzzle,
+              icon: const Icon(Icons.refresh),
+              label: const Text("Reset Puzzle"),
+            ),
           )
         ],
       ),
@@ -341,11 +347,11 @@ class WorldMapView extends StatelessWidget {
     return Container(
       color: const Color(0xFF0F172A),
       child: GridView.builder(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 3,
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
         ),
         itemCount: 12,
         itemBuilder: (context, index) {
@@ -365,10 +371,10 @@ class WorldMapView extends StatelessWidget {
                   size: 32,
                   color: isKeep ? Colors.amber : (isBoss ? Colors.redAccent : Colors.green),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
                   isKeep ? "Your City" : (isBoss ? "Lvl 15 Boss" : "Resource Node"),
-                  style: const TextStyle(fontSize: 10, color: Colors.white70),
+                  style: const TextStyle(fontSize: 11, color: Colors.white70),
                 )
               ],
             ),
@@ -389,7 +395,7 @@ class TavernView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       color: const Color(0xFF0F172A),
       child: Center(
         child: Column(
