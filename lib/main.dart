@@ -12,507 +12,348 @@ class AethelgardApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Aethelgard: Siege of Kings',
+      title: 'Aethelgard: Kings & Conundrums',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF0F172A),
-        primaryColor: const Color(0xFFD97706),
+        scaffoldBackgroundColor: const Color(0xFF0B0F19),
+        primaryColor: const Color(0xFFF59E0B),
       ),
-      home: const MainGameScreen(),
+      home: const PuzzleGameScreen(),
     );
   }
 }
 
-class MainGameScreen extends StatefulWidget {
-  const MainGameScreen({super.key});
+class PuzzleGameScreen extends StatefulWidget {
+  const PuzzleGameScreen({super.key});
 
   @override
-  State<MainGameScreen> createState() => _MainGameScreenState();
+  State<PuzzleGameScreen> createState() => _PuzzleGameState();
 }
 
-class _MainGameScreenState extends State<MainGameScreen> {
-  int _currentIndex = 0;
-  int gold = 1500;
+class _PuzzleGameState extends State<PuzzleGameScreen> {
+  int currentLevel = 1;
+  int gold = 1000;
   int gems = 50;
-  int castleHp = 100;
-  int maxCastleHp = 100;
-  int arrowDamage = 25;
-  int wave = 1;
-  int score = 0;
 
-  void addGold(int amount) => setState(() => gold += amount);
-  void addGems(int amount) => setState(() => gems += amount);
-  void damageCastle(int amount) {
+  // Level State flags
+  bool pin1Pulled = false; // Controls Lava
+  bool pin2Pulled = false; // Controls Gold / Treasure
+  bool pin3Pulled = false; // Controls Goblin Monster
+  bool levelCleared = false;
+  bool levelFailed = false;
+
+  void resetLevel() {
     setState(() {
-      castleHp -= amount;
-      if (castleHp <= 0) {
-        castleHp = maxCastleHp;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('⚠️ Castle Breached! Wave Restarted.')),
-        );
+      pin1Pulled = false;
+      pin2Pulled = false;
+      pin3Pulled = false;
+      levelCleared = false;
+      levelFailed = false;
+    });
+  }
+
+  void pullPin(int pinNo) {
+    if (levelCleared || levelFailed) return;
+    setState(() {
+      if (pinNo == 1) {
+        pin1Pulled = true;
+        // Pulling lava pin without blocking goblin first = FAIL
+        if (!pin3Pulled) {
+          levelFailed = true;
+        }
+      } else if (pinNo == 2) {
+        pin2Pulled = true;
+        // Pulling gold pin correctly after clearing obstacles = WIN
+        if (pin3Pulled) {
+          levelCleared = true;
+          gold += 500;
+          gems += 20;
+        } else {
+          levelFailed = true; // Lava burns gold/hero
+        }
+      } else if (pinNo == 3) {
+        pin3Pulled = true; // Blocks or releases goblin/trap
       }
+    });
+  }
+
+  void nextLevel() {
+    setState(() {
+      currentLevel++;
+      resetLevel();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    List<Widget> screens = [
-      BattleArenaView(
-        gold: gold,
-        gems: gems,
-        castleHp: castleHp,
-        maxCastleHp: maxCastleHp,
-        arrowDamage: arrowDamage,
-        wave: wave,
-        onReward: (g, s) {
-          addGold(g);
-          setState(() => score += s);
-        },
-        onDamageCastle: damageCastle,
-      ),
-      UpgradesView(
-        gold: gold,
-        arrowDamage: arrowDamage,
-        maxCastleHp: maxCastleHp,
-        onUpgradeDamage: (cost) {
-          setState(() {
-            gold -= cost;
-            arrowDamage += 15;
-          });
-        },
-        onUpgradeWall: (cost) {
-          setState(() {
-            gold -= cost;
-            maxCastleHp += 50;
-            castleHp = maxCastleHp;
-          });
-        },
-      ),
-      const CampaignMapView(),
-      TavernSummonView(gems: gems, onSummon: () {
-        if (gems >= 50) {
-          setState(() => gems -= 50);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('⚔️ Epic Paladin Hero Summoned!')),
-          );
-        }
-      }),
-    ];
-
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF1E293B),
         title: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _buildStatChip(Icons.monetization_on, "$gold", Colors.amber),
-            _buildStatChip(Icons.diamond, "$gems", Colors.cyan),
-            _buildStatChip(Icons.shield, "HP: $castleHp/$maxCastleHp", Colors.greenAccent),
+            Text("Level $currentLevel: Rescue Quest", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.amber)),
+            Row(
+              children: [
+                const Icon(Icons.monetization_on, color: Colors.amber, size: 18),
+                const SizedBox(width: 4),
+                Text("$gold", style: const TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(width: 12),
+                const Icon(Icons.diamond, color: Colors.cyan, size: 18),
+                const SizedBox(width: 4),
+                Text("$gems", style: const TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
           ],
         ),
       ),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 900),
-          child: screens[_currentIndex],
-        ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: const Color(0xFF1E293B),
-        selectedItemColor: const Color(0xFFF59E0B),
-        unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.security), label: "Battle"),
-          BottomNavigationBarItem(icon: Icon(Icons.flash_on), label: "Upgrades"),
-          BottomNavigationBarItem(icon: Icon(Icons.map), label: "Campaign"),
-          BottomNavigationBarItem(icon: Icon(Icons.star), label: "Heroes"),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatChip(IconData icon, String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.black45,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.4)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 16),
-          const SizedBox(width: 4),
-          Text(text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-        ],
-      ),
-    );
-  }
-}
-
-// ---------------- 1. BATTLE ARENA VIEW (ACTION GAMEPLAY) ----------------
-class Enemy {
-  double x; // 0.0 (Castle) to 1.0 (Spawn right)
-  int hp;
-  int maxHp;
-  double speed;
-  String name;
-  Color color;
-
-  Enemy({required this.x, required this.hp, required this.maxHp, required this.speed, required this.name, required this.color});
-}
-
-class BattleArenaView extends StatefulWidget {
-  final int gold;
-  final int gems;
-  final int castleHp;
-  final int maxCastleHp;
-  final int arrowDamage;
-  final int wave;
-  final Function(int, int) onReward;
-  final Function(int) onDamageCastle;
-
-  const BattleArenaView({
-    super.key,
-    required this.gold,
-    required this.gems,
-    required this.castleHp,
-    required this.maxCastleHp,
-    required this.arrowDamage,
-    required this.wave,
-    required this.onReward,
-    required this.onDamageCastle,
-  });
-
-  @override
-  State<BattleArenaView> createState() => _BattleArenaViewState();
-}
-
-class _BattleArenaViewState extends State<BattleArenaView> with SingleTickerProviderStateMixin {
-  late Timer _gameLoop;
-  final List<Enemy> _enemies = [];
-  final Random _rand = Random();
-  int enemiesDefeated = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    // Game Loop at ~30 FPS
-    _gameLoop = Timer.periodic(const Duration(milliseconds: 33), (timer) {
-      _updateGame();
-    });
-    // Spawn initial enemies
-    _spawnEnemy();
-    _spawnEnemy();
-  }
-
-  @override
-  void dispose() {
-    _gameLoop.cancel();
-    super.dispose();
-  }
-
-  void _spawnEnemy() {
-    if (_enemies.length < 5) {
-      bool isOrc = _rand.nextBool();
-      setState(() {
-        _enemies.add(Enemy(
-          x: 1.0,
-          hp: isOrc ? 60 : 30,
-          maxHp: isOrc ? 60 : 30,
-          speed: isOrc ? 0.003 : 0.005,
-          name: isOrc ? "Orc Raider" : "Goblin Thief",
-          color: isOrc ? Colors.redAccent : Colors.orangeAccent,
-        ));
-      });
-    }
-  }
-
-  void _updateGame() {
-    setState(() {
-      for (int i = _enemies.length - 1; i >= 0; i--) {
-        _enemies[i].x -= _enemies[i].speed;
-        // Reach Castle
-        if (_enemies[i].x <= 0.05) {
-          widget.onDamageCastle(10);
-          _enemies.removeAt(i);
-          _spawnEnemy();
-        }
-      }
-      if (_enemies.length < 4 && _rand.nextInt(50) == 1) {
-        _spawnEnemy();
-      }
-    });
-  }
-
-  void _tapAttackEnemy(Enemy enemy) {
-    setState(() {
-      enemy.hp -= widget.arrowDamage;
-      if (enemy.hp <= 0) {
-        _enemies.remove(enemy);
-        enemiesDefeated++;
-        widget.onReward(50, 10);
-        _spawnEnemy();
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          constraints: const BoxConstraints(maxWidth: 450),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
               children: [
-                Text("Wave ${widget.wave} - Tap Enemies to Shoot!", style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
-                Text("Defeated: $enemiesDefeated", style: const TextStyle(color: Colors.cyan)),
-              ],
-            ),
-          ),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                double width = constraints.maxWidth;
-                double height = constraints.maxHeight;
+                const Text(
+                  "🧩 Pull pins in the correct order to save the King and grab the royal treasure!",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                // Game Puzzle Box Arena
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF111827),
+                      border: Border.all(color: Colors.amber.withOpacity(0.6), width: 3),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 10, spreadRadius: 2)],
+                    ),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Chamber Structure
+                        // Lava Chamber Top-Left
+                        Positioned(
+                          top: 30,
+                          left: 40,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 500),
+                            width: 80,
+                            height: pin1Pulled ? 180 : 50,
+                            decoration: BoxDecoration(
+                              color: pin1Pulled ? Colors.deepOrange : Colors.orange.shade800,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Center(
+                              child: Text(
+                                pin1Pulled ? "🌋 LAVA FLOW!" : "🌋 Lava Chamber",
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ),
 
-                return Stack(
-                  children: [
-                    // Battlefield background lines
-                    Positioned.fill(
-                      child: CustomPaint(
-                        painter: BattlefieldPainter(),
-                      ),
-                    ),
-                    // Castle Wall on Left
-                    Positioned(
-                      left: 10,
-                      top: height / 2 - 80,
-                      child: Container(
-                        width: 60,
-                        height: 160,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF334155),
-                          border: Border.all(color: Colors.amber, width: 2),
-                          borderRadius: BorderRadius.circular(8),
+                        // Treasure Gold Chamber Top-Right
+                        Positioned(
+                          top: 30,
+                          right: 40,
+                          child: Container(
+                            width: 80,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              color: Colors.amber,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Center(
+                              child: Text(
+                                "💎 Treasury",
+                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black),
+                              ),
+                            ),
+                          ),
                         ),
-                        child: const Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.fort, color: Colors.amber, size: 36),
-                            SizedBox(height: 4),
-                            Text("WALL", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                          ],
+
+                        // Goblin Monster Middle
+                        Positioned(
+                          top: 150,
+                          right: 100,
+                          child: Opacity(
+                            opacity: pin3Pulled ? 0.3 : 1.0,
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.red.shade900,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text("👹 Goblin Guard", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                    // Enemies marching from right to left
-                    ..._enemies.map((enemy) {
-                      double posX = 80 + (width - 150) * enemy.x;
-                      return Positioned(
-                        left: posX,
-                        top: height / 2 - 30 + (_rand.nextDouble() * 100 - 50),
-                        child: GestureDetector(
-                          onTap: () => _tapAttackEnemy(enemy),
+
+                        // King / Hero at Bottom
+                        Positioned(
+                          bottom: 30,
                           child: Column(
                             children: [
-                              Container(
-                                width: 36,
-                                height: 6,
-                                decoration: BoxDecoration(
-                                  color: Colors.black54,
-                                  borderRadius: BorderRadius.circular(3),
-                                ),
-                                child: FractionallySizedBox(
-                                  alignment: Alignment.centerLeft,
-                                  widthFactor: (enemy.hp / enemy.maxHp).clamp(0.0, 1.0),
-                                  child: Container(decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(3))),
-                                ),
+                              Icon(
+                                levelCleared
+                                    ? Icons.sentiment_very_satisfied
+                                    : (levelFailed ? Icons.sentiment_very_dissatisfied : Icons.person_pin),
+                                size: 54,
+                                color: levelCleared ? Colors.greenAccent : (levelFailed ? Colors.redAccent : Colors.blueAccent),
                               ),
                               const SizedBox(height: 4),
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: enemy.color,
-                                  shape: BoxShape.circle,
-                                  boxShadow: const [BoxShadow(color: Colors.black, blurRadius: 4)],
+                              Text(
+                                levelCleared ? "VICTORY! REWARD CLAIMED!" : (levelFailed ? "OUCH! TRAPPED!" : "King Aethelgard"),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: levelCleared ? Colors.greenAccent : (levelFailed ? Colors.redAccent : Colors.white),
                                 ),
-                                child: const Icon(Icons.android, size: 24, color: Colors.white),
                               ),
-                              const SizedBox(height: 2),
-                              Text(enemy.name, style: const TextStyle(fontSize: 9, color: Colors.white70)),
                             ],
                           ),
                         ),
-                      );
-                    }),
+
+                        // Pin 1 (Lava Barrier Pin)
+                        if (!pin1Pulled)
+                          Positioned(
+                            top: 95,
+                            left: 30,
+                            child: GestureDetector(
+                              onTap: () => pullPin(1),
+                              child: Container(
+                                width: 100,
+                                height: 16,
+                                decoration: BoxDecoration(
+                                  color: Colors.redAccent,
+                                  borderRadius: BorderRadius.circular(8),
+                                  boxShadow: const [BoxShadow(color: Colors.black, blurRadius: 4)],
+                                ),
+                                child: const Center(
+                                  child: Text("Pull Pin 1 (Lava)", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold)),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                        // Pin 2 (Treasury Barrier Pin)
+                        if (!pin2Pulled)
+                          Positioned(
+                            top: 95,
+                            right: 30,
+                            child: GestureDetector(
+                              onTap: () => pullPin(2),
+                              child: Container(
+                                width: 100,
+                                height: 16,
+                                decoration: BoxDecoration(
+                                  color: Colors.amber,
+                                  borderRadius: BorderRadius.circular(8),
+                                  boxShadow: const [BoxShadow(color: Colors.black, blurRadius: 4)],
+                                ),
+                                child: const Center(
+                                  child: Text("Pull Pin 2 (Gold)", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.black)),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                        // Pin 3 (Goblin Trap Pin)
+                        if (!pin3Pulled)
+                          Positioned(
+                            top: 210,
+                            right: 80,
+                            child: GestureDetector(
+                              onTap: () => pullPin(3),
+                              child: Container(
+                                width: 120,
+                                height: 16,
+                                decoration: BoxDecoration(
+                                  color: Colors.purpleAccent,
+                                  borderRadius: BorderRadius.circular(8),
+                                  boxShadow: const [BoxShadow(color: Colors.black, blurRadius: 4)],
+                                ),
+                                child: const Center(
+                                  child: Text("Pull Pin 3 (Trap Door)", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                        // Win / Fail Overlay dialog banners inside arena
+                        if (levelCleared)
+                          Container(
+                            color: Colors.black87,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.military_tech, size: 70, color: Colors.amber),
+                                const SizedBox(height: 10),
+                                const Text("STAGE CLEARED!", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.amber)),
+                                const SizedBox(height: 6),
+                                const Text("+500 Gold | +20 Gems Earned", style: TextStyle(color: Colors.greenAccent)),
+                                const SizedBox(height: 20),
+                                ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.amber),
+                                  onPressed: nextLevel,
+                                  icon: const Icon(Icons.arrow_forward, color: Colors.black),
+                                  label: const Text("Next Level", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                        if (levelFailed)
+                          Container(
+                            color: Colors.black87,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.warning, size: 70, color: Colors.redAccent),
+                                const SizedBox(height: 10),
+                                const Text("LEVEL FAILED!", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.redAccent)),
+                                const SizedBox(height: 6),
+                                const Text("The King was caught in the trap!", style: TextStyle(color: Colors.grey)),
+                                const SizedBox(height: 20),
+                                ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                                  onPressed: resetLevel,
+                                  icon: const Icon(Icons.refresh),
+                                  label: const Text("Try Again", style: TextStyle(fontWeight: FontWeight.bold)),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Action Buttons
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: resetLevel,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text("Reset Puzzle"),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: levelCleared ? nextLevel : null,
+                      icon: const Icon(Icons.play_arrow),
+                      label: const Text("Next Stage"),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.amber, foregroundColor: Colors.black),
+                    ),
                   ],
-                );
-              },
+                ),
+              ],
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.all(12.0),
-            child: Text("👆 Tap rapidly on marching enemy units to fire archer arrows!", style: TextStyle(color: Colors.grey, fontSize: 12)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class BattlefieldPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white10
-      ..strokeWidth = 2;
-    canvas.drawLine(Offset(0, size.height / 2 + 50), Offset(size.width, size.height / 2 + 50), paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-// ---------------- 2. UPGRADES VIEW ----------------
-class UpgradesView extends StatelessWidget {
-  final int gold;
-  final int arrowDamage;
-  final int maxCastleHp;
-  final Function(int) onUpgradeDamage;
-  final Function(int) onUpgradeWall;
-
-  const UpgradesView({
-    super.key,
-    required this.gold,
-    required this.arrowDamage,
-    required this.maxCastleHp,
-    required this.onUpgradeDamage,
-    required this.onUpgradeWall,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    int dmgCost = 200;
-    int wallCost = 300;
-
-    return Padding(
-      padding: const EdgeInsets.all(20.0),
-      child: ListView(
-        children: [
-          const Text("🛡️ Kingdom Armory & Upgrades", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.amber)),
-          const SizedBox(height: 16),
-          Card(
-            color: const Color(0xFF1E293B),
-            child: ListTile(
-              leading: const Icon(Icons.bolt, color: Colors.amber, size: 36),
-              title: const Text("Archer Arrow Damage", style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text("Current Damage: $arrowDamage"),
-              trailing: ElevatedButton(
-                onPressed: gold >= dmgCost ? () => onUpgradeDamage(dmgCost) : null,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.amber),
-                child: Text("$dmgCost Gold", style: const TextStyle(color: Colors.black)),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Card(
-            color: const Color(0xFF1E293B),
-            child: ListTile(
-              leading: const Icon(Icons.shield, color: Colors.greenAccent, size: 36),
-              title: const Text("Castle Wall Durability", style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text("Max Wall HP: $maxCastleHp"),
-              trailing: ElevatedButton(
-                onPressed: gold >= wallCost ? () => onUpgradeWall(wallCost) : null,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent),
-                child: Text("$wallCost Gold", style: const TextStyle(color: Colors.black)),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ---------------- 3. CAMPAIGN MAP VIEW ----------------
-class CampaignMapView extends StatelessWidget {
-  const CampaignMapView({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12),
-      itemCount: 6,
-      itemBuilder: (context, index) {
-        bool unlocked = index < 3;
-        return Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E293B),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: unlocked ? Colors.amber : Colors.grey),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(unlocked ? Icons.lock_open : Icons.lock, size: 40, color: unlocked ? Colors.amber : Colors.grey),
-              const SizedBox(height: 8),
-              Text("Province ${index + 1}", style: const TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              Text(unlocked ? "Ready to Raid" : "Locked", style: TextStyle(fontSize: 12, color: unlocked ? Colors.green : Colors.grey)),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-// ---------------- 4. HERO TAVERN VIEW ----------------
-class TavernSummonView extends StatelessWidget {
-  final int gems;
-  final VoidCallback onSummon;
-
-  const TavernSummonView({super.key, required this.gems, required this.onSummon});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.auto_awesome, size: 80, color: Colors.cyan),
-            const SizedBox(height: 16),
-            const Text("Hero Summon Portal", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.cyan)),
-            const SizedBox(height: 8),
-            const Text("Summon legendary commanders to defend Aethelgard!", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.cyan,
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-              ),
-              onPressed: gems >= 50 ? onSummon : null,
-              icon: const Icon(Icons.star, color: Colors.black),
-              label: const Text("Summon Hero (50 Gems)", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-            ),
-          ],
         ),
       ),
     );
